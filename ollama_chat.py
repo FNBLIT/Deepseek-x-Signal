@@ -1,132 +1,132 @@
-#!/usr/bin/env python
-"""Assumes we are already running Ollama (uses mistral-openorca with default other settings)"""
+#!/usr/bin/env python3
+import requests
+import json
+import os
+from dotenv import load_dotenv
 
-import requests, json
+# Initial load from .env
+load_dotenv()
 
-ollama_chat_url = "http://localhost:11434/api/chat"
+# --- Configuration Constants ---
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-r1:7b")
+MAX_HISTORY = int(os.getenv("MAX_HISTORY", 10))
+OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 
-STATUS_REQUEST_RECEIVED = 'REQUEST_RECEIVED'
-STATUS_REQUEST_SENT = 'REQUEST_SENT'
-STATUS_RESPONSE_STARTED = 'RESPONSE_STARTED'
-STATUS_RESPONSE_PART_RECEIVED = 'RESPONSE_PART_RECEIVED'
-STATUS_RESPONSE_COMPLETED = 'RESPONSE_COMPLETED'
+# --- Persona Global State ---
+# This tracks the prompt loaded from disk vs the one currently active in memory
+_initial_env_prompt = os.getenv("SYSTEM_PROMPT", "You are a helpful assistant.")
+current_system_prompt = _initial_env_prompt
 
-# Generate initial system message (not required)
-def generate_system_message(system_prompt="You are a helpful assistant.", new_thread=[]):
-  new_thread = [
-    {
-      'role': 'system',
-      'content': system_prompt
+# --- Built-in Presets ---
+PRESETS = {
+    "shakespeare": "You are William Shakespeare. Speak in dramatic iambic pentameter.",
+    "pirate": "You are a salty sea pirate. Use heavy pirate slang and talk about hidden treasure.",
+    "doctor": "You are a professional medical doctor. Be clinical, helpful, and concise.",
+    "chef": "You are a world-class chef obsessed with garlic who yells like Gordon Ramsay.",
+    "robot": "You are a logical robot from the year 3000. Use binary metaphors and cold logic."
+}
+
+def set_global_prompt(new_prompt):
+    """Updates the active persona for new sessions."""
+    global current_system_prompt
+    current_system_prompt = new_prompt
+
+def is_prompt_saved():
+    """Checks if the active persona matches what is written in the .env file."""
+    return current_system_prompt == _initial_env_prompt
+
+def save_current_prompt_to_env():
+    """Permanentally writes the current_system_prompt to the .env file."""
+    global _initial_env_prompt
+    env_path = '.env'
+    if not os.path.exists(env_path):
+        return "❌ Error: .env file not found."
+
+    try:
+        with open(env_path, 'r') as f:
+            lines = f.readlines()
+
+        new_lines = []
+        found = False
+        for line in lines:
+            if line.startswith("SYSTEM_PROMPT="):
+                new_lines.append(f"SYSTEM_PROMPT={current_system_prompt}\n")
+                found = True
+            else:
+                new_lines.append(line)
+
+        if not found:
+            new_lines.append(f"SYSTEM_PROMPT={current_system_prompt}\n")
+
+        with open(env_path, 'w') as f:
+            f.writelines(new_lines)
+
+        # Synchronize initial state so /who shows 'Saved'
+        _initial_env_prompt = current_system_prompt
+        return "💾 Persona successfully saved to .env!"
+    except Exception as e:
+        return f"❌ Failed to save to .env: {e}"
+
+def generate_system_message(custom_prompt=None):
+    """Creates a new thread list starting with the system instructions."""
+    content = custom_prompt if custom_prompt else current_system_prompt
+    return [{"role": "system", "content": content}]
+
+def get_chat_completion(prompt, thread):
+    """Sends the conversation to Ollama and handles context trimming."""
+
+    # Ensure thread starts with a system prompt
+    if not thread or thread[0].get('role') != 'system':
+        thread.insert(0, generate_system_message()[0])
+
+    # Append new user message
+    thread.append({'role': 'user', 'content': prompt})
+
+    # Sliding Window: Remove oldest User/Assistant pairs if thread is too long
+    # (MAX_HISTORY * 2) + 1 accounts for the System Message + pairs
+    while len(thread) > (MAX_HISTORY * 2) + 1:
+        # We pop index 1 twice to remove the oldest User and then the oldest Assistant response
+        thread.pop(1)
+        thread.pop(1)
+
+    payload = {
+        'model': DEEPSEEK_MODEL,
+        'messages': thread,
+        'stream': True
     }
-  ]
-  return new_thread
 
-# Simple status callback, prints all status updates
-def print_status(status, content=None):
-  print(f'{status}: {content}')
+    try:
+        r = requests.post(OLLAMA_CHAT_URL, stream=True, json=payload, timeout=180)
+        r.raise_for_status()
 
-# Simple status callback, prints the final conversation
-def print_conversation_turns(status, content=None):
-  if status == STATUS_REQUEST_RECEIVED:
-    print(f'User: {content}')
-  elif status == STATUS_RESPONSE_COMPLETED:
-    print(f'Assistant: {content}')
+        full_response = ""
+        in_think = False
 
-# Simple status callback, prints the final conversation, as it streams
-def print_conversation_turns_streaming(status, content=None):
-  if status == STATUS_REQUEST_RECEIVED:
-    print(f'User: {content}')
-  elif status == STATUS_RESPONSE_STARTED:
-    print(f'Assistant: ', end='', flush=True)
-  elif status == STATUS_RESPONSE_PART_RECEIVED:
-    print(content, end='', flush=True)
-  elif status == STATUS_RESPONSE_COMPLETED:
-    print('')
+        for line in r.iter_lines():
+            if line:
+                data = json.loads(line.decode('utf-8'))
+                content = data.get("message", {}).get("content", "")
 
+                # Filter out Deepseek <think> blocks from Signal output
+                if "<think>" in content:
+                    in_think = True
+                    continue
+                if "</think>" in content:
+                    in_think = False
+                    continue
 
-# Get Completion
-def get_chat_completion(prompt='Hello', thread=[], status_callback=None):
+                if not in_think and content:
+                    full_response += content
 
-  # Start by noting the received prompt
-  if status_callback is not None:
-    status_callback(STATUS_REQUEST_RECEIVED, prompt)
+                if data.get("done"):
+                    break
 
-  # Add the user message
-  thread.append(
-    {
-      'role': 'user',
-      'content': prompt
-    }
-  )
+        final_text = full_response.strip()
+        if not final_text:
+            final_text = "(The model provided an empty response.)"
 
-  # Harcoded as mistral-openorca for now
-  ollama_request = {
-    'model': 'mistral-openorca',
-    'messages': thread
-  }
+        thread.append({'role': 'assistant', 'content': final_text})
 
-  # Make a POST request for a streaming response
-  r = requests.post(ollama_chat_url, stream=True, data=json.dumps(ollama_request))
-  if status_callback is not None:
-    status_callback(STATUS_REQUEST_SENT, prompt)
-
-  # Loop over all chunks as they are received
-  full_response = ''
-  response_started = False
-  first_response = True
-
-  for chunk in r.iter_content(1024):
-    if chunk:
-      
-      # Note the start of a response
-      if not response_started:
-        response_started = True
-        if status_callback is not None:
-          status_callback(STATUS_RESPONSE_STARTED)
-      
-      # Assume complete if no successful JSON decoding
-      try:
-        data = json.loads(chunk.decode('utf-8'))
-        
-        # Complete when done = true is received
-        if 'done' in data and data['done'] == True:
-          break
-
-        # Else record this chunk
-        this_response_chunk = data['message']['content']
-
-      except json.JSONDecodeError:
-        break
-
-      # Remove any initial space if it's a first response
-      if first_response:
-        first_response = False
-        if this_response_chunk.startswith(' '):
-          this_response_chunk = this_response_chunk[1:]
-      
-      # Note progress
-      if status_callback is not None:
-        status_callback(STATUS_RESPONSE_PART_RECEIVED, this_response_chunk)
-      
-      # Accumulate the completed response as necessary
-      full_response = full_response + this_response_chunk
-
-  # Note the end of the response
-  if status_callback is not None:
-    status_callback(STATUS_RESPONSE_COMPLETED, full_response)
-
-  # For convenience, return the new message history
-  thread.append({
-    'role': 'assistant',
-    'content': full_response
-  })
-  return thread
-
-
-def main():
-  thread = generate_system_message()
-  get_chat_completion(prompt='Mary had a little lamb', thread=thread, status_callback=print_conversation_turns)
-  get_chat_completion(prompt='I am hungry - should I cook and eat the lamb?', thread=thread, status_callback=print_conversation_turns)
-
-if __name__ == "__main__":
-  main()
+    except Exception as e:
+        print(f"[ERROR] Ollama communication failed: {e}")
+        thread.append({'role': 'assistant', 'content': f"⚠️ I encountered an error: {e}"})
