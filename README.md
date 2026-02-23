@@ -1,3 +1,5 @@
+#Forekd to add Deepseek Support
+
 # Exposing a Locally Hosted Large Language Model over Signal
 
 In this example, we use the Open Orca fine-tune of Deepseek 7B using Ollama and expose a simple one-chat-at-a-time interface over Signal using `signal-cli`, with no advanced memory or context management.
