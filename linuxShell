@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#############################################
+# 0. Change directory to where .env lives
+#############################################
+# (Your placeholder — no change)
+
+#############################################
+# 1. Auto-create venv if missing
+#############################################
+if [[ ! -d ".venv" ]]; then
+    echo "Virtual environment not found. Creating..."
+    python3 -m venv .venv
+fi
+
+
+#############################################
+# 2. Activate venv
+#############################################
+source .venv/bin/activate
+
+#############################################
+# 3. Ensure all dependencies are installed
+#############################################
+echo "Checking Python dependencies from requirements.txt..."
+
+if [[ -f requirements.txt ]]; then
+    pip install --quiet --disable-pip-version-check -r requirements.txt
+else
+    echo "WARNING: No requirements.txt found — skipping dependency installation."
+fi
+
+#############################################
+# 4. Load SIGNAL_PHONE_NUMBER_TO_SEND_FROM from .env
+#############################################
+if [[ -f .env ]]; then
+    SIGNAL_PHONE_NUMBER_TO_SEND_FROM=$(grep -E '^SIGNAL_PHONE_NUMBER_TO_SEND_FROM=' .env | cut -d= -f2-)
+else
+    echo ".env not found"
+    exit 1
+fi
+
+echo "SIGNAL_PHONE_NUMBER_TO_SEND_FROM loaded: $SIGNAL_PHONE_NUMBER_TO_SEND_FROM"
+
+#############################################
+# 4.5 — START OLLAMA + WAIT FOR MODEL RESPONSE
+#############################################
+echo "Starting Ollama server..."
+nohup ollama serve >/tmp/ollama.log 2>&1 &
+
+echo "Waiting for Ollama API to be reachable..."
+until curl -s http://localhost:11434/api/tags >/dev/null 2>&1; do
+    sleep 1
+done
+echo "Ollama API is online."
+
+echo "Pulling deepseek-r1:1.5b (if not already installed)..."
+ollama pull deepseek-r1:1.5b
+
+echo "Testing deepseek-r1:1.5b response..."
+until curl -s http://localhost:11434/api/generate \
+        -d '{"model":"deepseek-r1:1.5b","prompt":"Hello"}' \
+        | grep -q '"response"'; do
+    echo "Model not ready yet, retrying..."
+    sleep 1
+done
+
+echo "deepseek-r1:1.5b is ready."
+
+#############################################
+# 5. Delete previous signal-cli error log
+#############################################
+echo "Deleting temporary signal-cli-errors-and-warnings.log if it exists"
+rm -f signal-cli/bin/signal-cli-errors-and-warnings.log
+
+#############################################
+# 6. Start signal-cli daemon in background
+#############################################
+echo "Starting signal-cli"
+
+(
+    cd signal-cli/bin
+    nohup ./signal-cli \
+        -a "$SIGNAL_PHONE_NUMBER_TO_SEND_FROM" \
+        daemon \
+        --http localhost:11535 \
+        --receive-mode=manual \
+        >> signal-cli.log \
+        2> signal-cli-errors-and-warnings.log &
+)
+
+#############################################
+# 7. Wait before checking logs
+#############################################
+sleep 10
+
+#############################################
+# 8. Check for ERRORS or WARNINGS
+#############################################
+LOGFILE="signal-cli/bin/signal-cli-errors-and-warnings.log"
+is_error=0
+is_warning=0
+
+if [[ -f "$LOGFILE" ]]; then
+    while IFS= read -r line; do
+        [[ "$line" == ERROR* ]] && is_error=1
+        [[ "$line" == WARN*  ]] && is_warning=1
+    done < "$LOGFILE"
+fi
+
+if [[ $is_error -eq 1 ]]; then
+    echo "Error loading signal-cli — see signal-cli-errors-and-warnings.log"
+    exit 1
+elif [[ $is_warning -eq 1 ]]; then
+    echo "Warning from signal-cli — check signal-cli-errors-and-warnings.log"
+else
+    echo "No errors or warnings from initial signal-cli startup"
+fi
+
+#############################################
+# 9. Run your Python script
+#############################################
+echo "Running signal_deepseek.py..."
+python3 signal_deepseek.py

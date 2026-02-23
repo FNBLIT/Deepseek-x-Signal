@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<eclipse-userlibraries>
+  <library name="Python 3.12 interpreter library">
+    <archive path="/usr/lib/python3.12" />
+    <archive path="/usr/lib/python3.12/lib-dynload" />
+    <archive path="/home/ben/.local/lib/python3.12/site-packages" />
+    <archive path="/usr/local/lib/python3.12/dist-packages" />
+    <archive path="/usr/lib/python3/dist-packages" />
+    <archive path="/usr/lib/python3.12/dist-packages" />
+    <archive path="/home/ben/.cache/JetBrains/IdeaIC2025.2/python_stubs/-32419094" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stdlib" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/six" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/pytz" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/pyxdg" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/Pillow" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/PyYAML" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/netaddr" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/olefile" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/pexpect" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/Pygments" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/colorama" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/html5lib" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/httplib2" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/oauthlib" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/paramiko" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/pyserial" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/requests" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/decorator" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/jsonschema" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/setuptools" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/beautifulsoup4" />
+    <archive path="/home/ben/.local/share/JetBrains/IdeaIC2025.2/python-ce/helpers/typeshed/stubs/python-dateutil" />
+  </library>
+</eclipse-userlibraries>
+
